@@ -75,6 +75,9 @@ async function initDb() {
     );
     INSERT INTO stats (key, value) VALUES ('total_posts', (SELECT COUNT(*) FROM moves)) ON CONFLICT (key) DO NOTHING;
     INSERT INTO stats (key, value) VALUES ('total_visits', 0) ON CONFLICT (key) DO NOTHING;
+    ALTER TABLE moves ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'move';
+    ALTER TABLE moves ADD COLUMN IF NOT EXISTS all_welcome BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE comments ADD COLUMN IF NOT EXISTS device TEXT NOT NULL DEFAULT '';
     CREATE INDEX IF NOT EXISTS moves_updated_idx ON moves (updated_at DESC);
     CREATE INDEX IF NOT EXISTS updates_move_idx ON updates (move_id);
     CREATE INDEX IF NOT EXISTS comments_move_idx ON comments (move_id);
@@ -102,18 +105,80 @@ function pickColor(prev) {
   return i;
 }
 
-// Simple per-IP write limit: 40 writes per minute
-const hits = new Map();
-function limitWrites(req, res, next) {
+// ---------------- Anti-spam ----------------
+// Limits are counted per device (one phone/browser) AND per network address (IP).
+// Per-IP limits are looser than per-device ones because everyone on campus Wi-Fi
+// can share the same IP. Counters live in memory and reset when the server restarts.
+const MIN = 60 * 1000, HOUR = 60 * MIN;
+const LIMITS = {
+  post:    { device: [[1, MIN], [20, DAY]], ip: [[6, MIN], [200, DAY]] },  // moves + interests
+  comment: { device: [[1, 10000], [8, MIN], [150, DAY]], ip: [[40, MIN]] },
+  update:  { device: [[1, 10000], [8, MIN]], ip: [[30, MIN]] },
+  react:   { device: [[30, MIN]], ip: [[150, MIN]] },                       // upvotes, going
+  remove:  { device: [[10, MIN]], ip: [[40, MIN]] },
+  visit:   { device: [[10, MIN]], ip: [[200, MIN]] },
+};
+const NEW_DEVICES_PER_IP_PER_HOUR = 150; // stops a bot from minting fake visitors/upvotes
+
+const buckets = new Map();
+// Checks every rule first and only records the hit if all pass.
+// Returns { wait } (seconds, 0 = allowed) and refund() to undo the hit if the request fails.
+function rateHit(rules) {
   const now = Date.now();
-  const key = req.ip;
-  const list = (hits.get(key) || []).filter(t => now - t < 60000);
-  if (list.length >= 40) return res.status(429).json({ error: "Slow down a little and try again in a minute." });
-  list.push(now);
-  hits.set(key, list);
-  next();
+  let wait = 0;
+  const lists = rules.map(([key, limit, win]) => {
+    const list = (buckets.get(key) || []).filter(t => now - t < win);
+    buckets.set(key, list);
+    if (list.length >= limit) wait = Math.max(wait, Math.ceil((win - (now - list[list.length - limit])) / 1000));
+    return list;
+  });
+  if (wait) return { wait, refund() {} };
+  const stamp = now + Math.random() / 1000; // unique marker for this hit
+  lists.forEach(l => l.push(stamp));
+  return { wait: 0, refund() { lists.forEach(l => { const i = l.indexOf(stamp); if (i >= 0) l.splice(i, 1); }); } };
 }
-setInterval(() => { const now = Date.now(); for (const [k, v] of hits) if (!v.some(t => now - t < 60000)) hits.delete(k); }, 60000);
+const rate = rules => rateHit(rules).wait;
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of buckets) if (!v.some(t => now - t < DAY)) buckets.delete(k);
+}, 10 * MIN);
+
+function waitText(sec) {
+  if (sec < 60) return `${sec} second${sec === 1 ? "" : "s"}`;
+  if (sec < 3600) { const m = Math.ceil(sec / 60); return `${m} minute${m === 1 ? "" : "s"}`; }
+  const h = Math.ceil(sec / 3600); return `${h} hour${h === 1 ? "" : "s"}`;
+}
+const LIMIT_MSG = {
+  post: s => `You can post again in ${waitText(s)}.`,
+  comment: s => `Slow down. You can comment again in ${waitText(s)}.`,
+  update: s => `You can post another update in ${waitText(s)}.`,
+  react: s => `Too many taps. Try again in ${waitText(s)}.`,
+  remove: s => `Try again in ${waitText(s)}.`,
+  visit: s => `Try again in ${waitText(s)}.`,
+};
+function limit(kind) {
+  return (req, res, next) => {
+    const device = deviceOf(req) || "none";
+    const L = LIMITS[kind];
+    const rules = [
+      ...L.device.map(([n, w], i) => [`${kind}:d${i}:${device}`, n, w]),
+      ...L.ip.map(([n, w], i) => [`${kind}:i${i}:${req.ip}`, n, w]),
+    ];
+    const hit = rateHit(rules);
+    if (hit.wait) return res.status(429).json({ error: LIMIT_MSG[kind](hit.wait) });
+    // Rejected requests (bad input, duplicates, unregistered device) don't use up the allowance.
+    res.on("finish", () => { if (res.statusCode >= 400) hit.refund(); });
+    next();
+  };
+}
+
+// Writes only come from devices that have opened the site (registered through /api/visit).
+async function requireKnown(req, res) {
+  const device = needDevice(req, res); if (!device) return null;
+  const r = await pool.query("SELECT 1 FROM visitors WHERE device = $1", [device]);
+  if (!r.rowCount) { res.status(403).json({ error: "Reload the page and try again.", code: "register" }); return null; }
+  return device;
+}
 
 async function moveExists(id) {
   const r = await pool.query("SELECT author FROM moves WHERE id = $1", [id]);
@@ -124,9 +189,11 @@ async function moveExists(id) {
 app.get("/api/moves", async (req, res) => {
   try {
     const device = deviceOf(req) || "";
-    const since = Date.now() - DAY;
+    const now = Date.now();
     const { rows: moves } = await pool.query(
-      "SELECT * FROM moves WHERE updated_at >= $1 ORDER BY updated_at DESC LIMIT 200", [since]);
+      `SELECT * FROM moves
+       WHERE (kind = 'interest' AND updated_at >= $2) OR (kind <> 'interest' AND updated_at >= $1)
+       ORDER BY updated_at DESC LIMIT 300`, [now - DAY, now - 7 * DAY]);
     const ids = moves.map(m => m.id);
     if (!ids.length) return res.json({ moves: [] });
 
@@ -148,6 +215,8 @@ app.get("/api/moves", async (req, res) => {
     res.json({
       moves: moves.map(m => ({
         id: m.id,
+        kind: m.kind,
+        allWelcome: m.all_welcome,
         title: m.title,
         category: m.category,
         frat: m.frat,
@@ -171,32 +240,41 @@ app.get("/api/moves", async (req, res) => {
   }
 });
 
-app.post("/api/moves", limitWrites, async (req, res) => {
-  const device = needDevice(req, res); if (!device) return;
+app.post("/api/moves", limit("post"), async (req, res) => {
   const b = req.body || {};
-  const title = str(b.title, 80);
-  if (!title) return res.status(400).json({ error: "Add a short title." });
-  const category = CATEGORIES.includes(b.category) ? b.category : "";
-  const time = b.time === "now" ? "now" : (/^\d{2}:\d{2}$/.test(b.time || "") ? b.time : "");
-  const going = Math.max(0, Math.min(9999, parseInt(b.going, 10) || 0));
-  const names = Array.isArray(b.names) ? b.names.map(n => str(n, 40)).filter(Boolean).slice(0, 30) : [];
-  const now = Date.now();
-  const id = crypto.randomUUID();
+  // Honeypot: a hidden field real people never fill in. Bots that fill every field get a fake success.
+  if (str(b.website, 200)) return res.json({ id: "ok" });
   try {
+    const device = await requireKnown(req, res); if (!device) return;
+    const isInterest = b.kind === "interest";
+    const title = str(b.title, isInterest ? 300 : 80);
+    if (!title) return res.status(400).json({ error: isInterest ? "Describe what you're into." : "Add a short title." });
+    const now = Date.now();
+    const dup = await pool.query(
+      "SELECT 1 FROM moves WHERE author = $1 AND lower(title) = lower($2) AND created_at >= $3 LIMIT 1",
+      [device, title, now - 30 * MIN]);
+    if (dup.rowCount) return res.status(409).json({ error: "You already posted that." });
+
+    const category = !isInterest && CATEGORIES.includes(b.category) ? b.category : "";
+    const time = isInterest ? str(b.time, 40)
+      : b.time === "now" ? "now" : (/^\d{2}:\d{2}$/.test(b.time || "") ? b.time : "");
+    const names = !isInterest && Array.isArray(b.names) ? b.names.map(n => str(n, 40)).filter(Boolean).slice(0, 30) : [];
+    const id = crypto.randomUUID();
     await pool.query(
-      `INSERT INTO moves (id, title, category, frat, time, location, going_base, names, author, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)`,
-      [id, title, category, !!b.frat, time, str(b.location, 80), going, JSON.stringify(names), device, now]);
+      `INSERT INTO moves (id, kind, title, category, frat, all_welcome, time, location, going_base, names, author, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,$9,$10,$11,$11)`,
+      [id, isInterest ? "interest" : "move", title, category, !isInterest && !!b.frat, !isInterest && !!b.allWelcome,
+       time, str(b.location, 80), JSON.stringify(names), device, now]);
     await pool.query("UPDATE stats SET value = value + 1 WHERE key = 'total_posts'");
     res.json({ id });
   } catch (e) { console.error(e); res.status(500).json({ error: "Couldn't post." }); }
 });
 
-app.post("/api/moves/:id/updates", limitWrites, async (req, res) => {
-  const device = needDevice(req, res); if (!device) return;
+app.post("/api/moves/:id/updates", limit("update"), async (req, res) => {
   const text = str((req.body || {}).text, 140);
   if (!text) return res.status(400).json({ error: "Write something first." });
   try {
+    const device = await requireKnown(req, res); if (!device) return;
     const m = await moveExists(req.params.id);
     if (!m) return res.status(404).json({ error: "That move was deleted." });
     if (m.author !== device) return res.status(403).json({ error: "Only the person who posted this move can add updates." });
@@ -209,32 +287,37 @@ app.post("/api/moves/:id/updates", limitWrites, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: "Couldn't post the update." }); }
 });
 
-app.post("/api/moves/:id/comments", limitWrites, async (req, res) => {
-  const device = needDevice(req, res); if (!device) return;
+app.post("/api/moves/:id/comments", limit("comment"), async (req, res) => {
   const text = str((req.body || {}).text, 280);
   const name = str((req.body || {}).name, 30) || "Someone";
   if (!text) return res.status(400).json({ error: "Write something first." });
   try {
+    const device = await requireKnown(req, res); if (!device) return;
     if (!(await moveExists(req.params.id))) return res.status(404).json({ error: "That move was deleted." });
+    const now = Date.now();
+    const dup = await pool.query(
+      "SELECT 1 FROM comments WHERE move_id = $1 AND device = $2 AND lower(text) = lower($3) AND at >= $4 LIMIT 1",
+      [req.params.id, device, text, now - 10 * MIN]);
+    if (dup.rowCount) return res.status(409).json({ error: "You already posted that comment." });
     const last = await pool.query("SELECT color FROM comments WHERE move_id = $1 ORDER BY at DESC LIMIT 1", [req.params.id]);
-    await pool.query("INSERT INTO comments (move_id, text, name, color, at) VALUES ($1,$2,$3,$4,$5)",
-      [req.params.id, text, name, pickColor(last.rows[0]?.color), Date.now()]);
+    await pool.query("INSERT INTO comments (move_id, text, name, color, at, device) VALUES ($1,$2,$3,$4,$5,$6)",
+      [req.params.id, text, name, pickColor(last.rows[0]?.color), now, device]);
     res.json({ ok: true });
   } catch (e) { console.error(e); res.status(500).json({ error: "Couldn't post the comment." }); }
 });
 
-app.post("/api/moves/:id/upvote", limitWrites, async (req, res) => {
-  const device = needDevice(req, res); if (!device) return;
+app.post("/api/moves/:id/upvote", limit("react"), async (req, res) => {
   try {
+    const device = await requireKnown(req, res); if (!device) return;
     if (!(await moveExists(req.params.id))) return res.status(404).json({ error: "That move was deleted." });
     await pool.query("INSERT INTO upvotes (move_id, device) VALUES ($1,$2) ON CONFLICT DO NOTHING", [req.params.id, device]);
     res.json({ ok: true });
   } catch (e) { console.error(e); res.status(500).json({ error: "Couldn't upvote." }); }
 });
 
-app.post("/api/moves/:id/going", limitWrites, async (req, res) => {
-  const device = needDevice(req, res); if (!device) return;
+app.post("/api/moves/:id/going", limit("react"), async (req, res) => {
   try {
+    const device = await requireKnown(req, res); if (!device) return;
     if (!(await moveExists(req.params.id))) return res.status(404).json({ error: "That move was deleted." });
     if ((req.body || {}).going) {
       await pool.query("INSERT INTO going (move_id, device) VALUES ($1,$2) ON CONFLICT DO NOTHING", [req.params.id, device]);
@@ -245,7 +328,7 @@ app.post("/api/moves/:id/going", limitWrites, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: "Couldn't update." }); }
 });
 
-app.delete("/api/moves/:id", limitWrites, async (req, res) => {
+app.delete("/api/moves/:id", limit("remove"), async (req, res) => {
   const device = needDevice(req, res); if (!device) return;
   try {
     const m = await moveExists(req.params.id);
@@ -257,14 +340,22 @@ app.delete("/api/moves/:id", limitWrites, async (req, res) => {
 });
 
 // Count a visit (called once per page load)
-app.post("/api/visit", limitWrites, async (req, res) => {
+app.post("/api/visit", limit("visit"), async (req, res) => {
   const device = needDevice(req, res); if (!device) return;
   const now = Date.now();
   try {
-    await pool.query(
-      `INSERT INTO visitors (device, first_seen, last_seen, visits) VALUES ($1, $2, $2, 1)
-       ON CONFLICT (device) DO UPDATE SET last_seen = $2, visits = visitors.visits + 1`, [device, now]);
-    await pool.query("UPDATE stats SET value = value + 1 WHERE key = 'total_visits'");
+    const prev = await pool.query("SELECT last_seen FROM visitors WHERE device = $1", [device]);
+    if (!prev.rowCount) {
+      const wait = rate([[`newdev:${req.ip}`, NEW_DEVICES_PER_IP_PER_HOUR, HOUR]]);
+      if (wait) return res.status(429).json({ error: `Too many new visitors from this network. Try again in ${waitText(wait)}.` });
+      await pool.query("INSERT INTO visitors (device, first_seen, last_seen, visits) VALUES ($1,$2,$2,1) ON CONFLICT DO NOTHING", [device, now]);
+      await pool.query("UPDATE stats SET value = value + 1 WHERE key = 'total_visits'");
+    } else if (now - Number(prev.rows[0].last_seen) > 30 * MIN) {
+      await pool.query("UPDATE visitors SET last_seen = $2, visits = visits + 1 WHERE device = $1", [device, now]);
+      await pool.query("UPDATE stats SET value = value + 1 WHERE key = 'total_visits'");
+    } else {
+      await pool.query("UPDATE visitors SET last_seen = $2 WHERE device = $1", [device, now]);
+    }
     res.json({ ok: true });
   } catch (e) { console.error(e); res.status(500).json({ error: "Couldn't record visit." }); }
 });
@@ -282,7 +373,7 @@ app.get("/stats", async (req, res) => {
       pool.query("SELECT COUNT(*)::int AS n FROM visitors"),
       pool.query("SELECT COUNT(*)::int AS n FROM visitors WHERE last_seen >= $1", [now - DAY]),
       pool.query("SELECT COUNT(*)::int AS n FROM visitors WHERE last_seen >= $1", [now - 7 * DAY]),
-      pool.query("SELECT COUNT(*)::int AS n FROM moves WHERE updated_at >= $1", [now - DAY]),
+      pool.query("SELECT COUNT(*)::int AS n FROM moves WHERE kind <> 'interest' AND updated_at >= $1", [now - DAY]),
     ]);
     const s = Object.fromEntries(st.rows.map(r => [r.key, Number(r.value)]));
     res.json({
@@ -301,7 +392,7 @@ app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 
 // Clear out moves older than a week, once an hour
 setInterval(() => {
-  pool.query("DELETE FROM moves WHERE updated_at < $1", [Date.now() - 7 * DAY]).catch(e => console.error(e));
+  pool.query("DELETE FROM moves WHERE updated_at < $1", [Date.now() - 8 * DAY]).catch(e => console.error(e));
 }, 60 * 60 * 1000);
 
 const PORT = process.env.PORT || 3000;

@@ -68,20 +68,22 @@ h1 .q{color:var(--glow)}
 
 /* Mode switch */
 .switch{
-  margin-top:18px; display:grid; grid-template-columns:1fr 1fr; position:relative;
+  margin-top:18px; display:grid; grid-template-columns:1fr 1fr 1fr; position:relative;
   background:rgba(255,255,255,.12); border-radius:999px; padding:4px;
 }
 .switch button{
   position:relative; z-index:1; border:0; background:none; color:#fff;
-  padding:11px 8px; border-radius:999px; font-weight:600; font-size:15px;
+  padding:11px 4px; border-radius:999px; font-weight:600; font-size:15px; white-space:nowrap;
   transition:color .2s;
 }
 .switch button[aria-pressed="true"]{color:var(--deep)}
 .switch .knob{
-  position:absolute; top:4px; bottom:4px; left:4px; width:calc(50% - 4px);
+  position:absolute; top:4px; bottom:4px; left:4px; width:calc((100% - 8px) / 3);
   background:#fff; border-radius:999px; transition:transform .25s cubic-bezier(.3,.7,.3,1);
 }
 .switch[data-mode="frat"] .knob{transform:translateX(100%)}
+.switch[data-mode="interest"] .knob{transform:translateX(200%)}
+@media (max-width:360px){.switch button{font-size:14px}}
 
 /* Category chips */
 .cats{
@@ -335,6 +337,14 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
 .as b{color:var(--ink);font-weight:600}
 .link{border:0;background:none;padding:0;color:var(--blue);font-weight:600;text-decoration:underline}
 #nameScrim{z-index:30}
+
+.hp{position:absolute!important;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}
+.hint{margin:4px 2px 0;font-size:13px;color:var(--muted);text-align:right}
+.cats[hidden]{display:none}
+.move h3.itext{font-weight:500;font-size:17px;line-height:1.35;white-space:pre-wrap}
+.sheet h2.itext{font-weight:600;font-size:21px;line-height:1.3;letter-spacing:0;white-space:pre-wrap}
+.welcome{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;
+  background:#D1FAE5;color:#065F46;margin-left:6px;vertical-align:2px}
 </style>
 </head>
 <body>
@@ -348,6 +358,7 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
       <div class="knob"></div>
       <button type="button" data-mode="any" aria-pressed="true">Any move</button>
       <button type="button" data-mode="frat" aria-pressed="false">Frat moves</button>
+      <button type="button" data-mode="interest" aria-pressed="false" aria-label="Interests and hobbies">Interests</button>
     </div>
   </div>
 </header>
@@ -384,24 +395,45 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
     <label for="fLoc">Where <small>(optional)</small></label>
     <input type="text" id="fLoc" maxlength="80" placeholder="Benson Center" autocomplete="off">
 
-    <div class="grid2">
-      <div>
-        <label for="fGoing">How many going <small>(optional)</small></label>
-        <input type="number" id="fGoing" min="0" max="9999" inputmode="numeric" placeholder="0">
-      </div>
-      <div>
-        <label for="fNames">Who's going <small>(optional)</small></label>
-        <input type="text" id="fNames" maxlength="200" placeholder="Maya, Leo" autocomplete="off">
-      </div>
-    </div>
+    <label for="fNames">Who's going <small>(optional)</small></label>
+    <input type="text" id="fNames" maxlength="200" placeholder="Maya, Leo" autocomplete="off">
 
     <div class="toggle">
+      <span>All are welcome<small>Anyone can show up</small></span>
+      <label class="tg" style="margin:0"><input type="checkbox" id="fAll" aria-label="All are welcome"><i></i></label>
+    </div>
+
+    <div class="toggle" style="margin-top:10px">
       <span>Frat move<small>Shows under Frat moves</small></span>
       <label class="tg" style="margin:0"><input type="checkbox" id="fFrat" aria-label="Frat move"><i></i></label>
     </div>
 
+    <input type="text" id="fWeb" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
     <button class="primary" id="fPost">Post move</button>
     <div class="err" id="fErr"></div>
+  </div>
+</div>
+
+<!-- Interest sheet -->
+<div class="scrim" id="intScrim" aria-hidden="true">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="iTitle">
+    <div class="sheet-head">
+      <h2 id="iTitle">Share an interest</h2>
+      <button class="x" data-close aria-label="Close">✕</button>
+    </div>
+    <label for="iText">What are you into?</label>
+    <textarea id="iText" maxlength="300" placeholder="Learning guitar and looking for people to jam with. Beginners welcome."></textarea>
+    <p class="hint"><span id="iCount">0</span>/300</p>
+
+    <label for="iWhen">When to meet up <small>(optional)</small></label>
+    <input type="text" id="iWhen" maxlength="40" placeholder="Weekends, or Thursdays after 6" autocomplete="off">
+
+    <label for="iLoc">Where <small>(optional)</small></label>
+    <input type="text" id="iLoc" maxlength="80" placeholder="Music building practice rooms" autocomplete="off">
+
+    <input type="text" id="iWeb" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <button class="primary" id="iPost">Share interest</button>
+    <div class="err" id="iErr"></div>
   </div>
 </div>
 
@@ -480,6 +512,7 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
   const TEAL = ["#B8F2EC","#A7EDE6","#C6F5F0","#9DE8E0","#B0EFE9","#CFF7F3","#A2EBE3","#BDF3EE","#AAEEE7","#C2F4EF","#B4F0EA","#99E6DE"];
   const colorOf = (item, pal = COLORS) => pal[item.c] || pal[0];
   const WINDOW_MS = 24 * 60 * 60 * 1000;
+  const INTEREST_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
   const POLL_MS = 5000;
 
   const state = { mode:"any", cat:"all", moves:[], openId:null, ready:false, online:true, delArmed:null };
@@ -514,7 +547,7 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
   };
 
   // ---------- API ----------
-  async function api(method, url, body){
+  async function api(method, url, body, retried){
     const res = await fetch(url, {
       method,
       headers: { "Content-Type":"application/json", "X-Device": DEVICE },
@@ -522,6 +555,10 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
     });
     let data = {};
     try { data = await res.json(); } catch {}
+    if (res.status === 403 && data.code === "register" && !retried){
+      await api("POST", "/api/visit", null, true).catch(() => {});
+      return api(method, url, body, true);
+    }
     if (!res.ok) throw new Error(data.error || "Something went wrong. Try again.");
     return data;
   }
@@ -550,6 +587,7 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
   function fmtTime(t){
     if (!t) return "";
     if (t === "now") return "Right now";
+    if (!/^\d{1,2}:\d{2}$/.test(t)) return t;
     const [h, m] = t.split(":").map(Number);
     if (isNaN(h)) return t;
     const ap = h >= 12 ? "PM" : "AM";
@@ -576,6 +614,8 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
     state.mode = b.dataset.mode;
     $("modeSwitch").dataset.mode = state.mode;
     $("modeSwitch").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    $("cats").hidden = state.mode === "interest";
+    $("fab").setAttribute("aria-label", state.mode === "interest" ? "Share an interest" : "Post a new move");
     render();
   });
 
@@ -592,8 +632,15 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
 
   // ---------- list ----------
   function visibleMoves(){
+    if (state.mode === "interest"){
+      const cutoff = Date.now() - INTEREST_WINDOW_MS;
+      return state.moves
+        .filter(m => m.kind === "interest" && (m.updatedAt || m.createdAt || 0) >= cutoff)
+        .sort((a,b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
+    }
     const cutoff = Date.now() - WINDOW_MS;
     return state.moves
+      .filter(m => m.kind !== "interest")
       .filter(m => (m.updatedAt || m.createdAt || 0) >= cutoff)
       .filter(m => state.mode === "frat" ? m.frat : true)
       .filter(m => state.cat === "all" || m.category === state.cat)
@@ -615,11 +662,20 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
     const list = $("list"); list.textContent = "";
     if (!state.ready){ $("count").textContent = "Loading moves…"; return; }
     const moves = visibleMoves();
+    const isInt = state.mode === "interest";
     const scope = state.mode === "frat" ? "frat " : "";
-    $("count").textContent = moves.length
-      ? `${moves.length} ${scope}move${moves.length === 1 ? "" : "s"} in the last 24 hours`
-      : "";
+    $("count").textContent = !moves.length ? ""
+      : isInt ? `${moves.length} interest${moves.length === 1 ? "" : "s"} shared this week`
+      : `${moves.length} ${scope}move${moves.length === 1 ? "" : "s"} in the last 24 hours`;
 
+    if (!moves.length && isInt){
+      list.append(el("div", {class:"empty"},
+        el("strong", {text:"No interests shared yet"}),
+        "Share what you're into and find people who are into it too.", el("br"),
+        el("button", {type:"button", onclick:openInterest}, "Share an interest")
+      ));
+      return;
+    }
     if (!moves.length){
       const c = state.cat !== "all" ? catOf(state.cat) : null;
       list.append(el("div", {class:"empty"},
@@ -631,15 +687,17 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
     }
 
     moves.forEach(m => {
+      const isI = m.kind === "interest";
       const c = catOf(m.category);
       const meta = [];
       if (m.time) meta.push(el("span", {text:"🕒 " + fmtTime(m.time)}));
       if (m.location) meta.push(el("span", {text:"📍 " + m.location}));
-      if (m.going) meta.push(el("span", {text:`👥 ${m.going} going`}));
-      meta.push(el("span", {text: "Posted " + ago(m.createdAt)}));
+      if (m.going) meta.push(el("span", {text: isI ? `👥 ${m.going} interested` : `👥 ${m.going} going`}));
+      meta.push(el("span", {text: (isI ? "Shared " : "Posted ") + ago(m.createdAt)}));
 
-      const h3 = el("h3", {}, m.title);
+      const h3 = el("h3", isI ? {class:"itext"} : {}, m.title);
       if (m.frat) h3.append(el("span", {class:"badge", text:"Frat"}));
+      if (m.allWelcome) h3.append(el("span", {class:"welcome", text:"All welcome"}));
 
       const lit = m.upvoted;
       const fBtn = el("button", {class:"sbtn" + (lit ? " lit" : ""), type:"button",
@@ -653,7 +711,7 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
         onclick:() => openDetail(m.id),
         onkeydown:e => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); openDetail(m.id); } }},
         el("div", {class:"move-top"},
-          el("div", {class:"emoji", "aria-hidden":"true", text: c ? c.e : "📌"}),
+          el("div", {class:"emoji", "aria-hidden":"true", text: isI ? "💡" : (c ? c.e : "📌")}),
           body,
           el("div", {class:"side"}, fBtn)
         )
@@ -706,7 +764,7 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
   document.addEventListener("keydown", e => {
     if (e.key !== "Escape") return;
     if ($("nameScrim").classList.contains("open")) return closeSheet("nameScrim");
-    ["newScrim","detScrim"].forEach(id => $(id).classList.contains("open") && closeSheet(id));
+    ["newScrim","intScrim","detScrim"].forEach(id => $(id).classList.contains("open") && closeSheet(id));
   });
 
   // ---------- name (asked once, the first time you comment) ----------
@@ -747,7 +805,8 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
     }, `${c.e} ${c.label}`)));
   }
   function openNew(){
-    ["fTitle","fTime","fLoc","fGoing","fNames"].forEach(i => $(i).value = "");
+    ["fTitle","fTime","fLoc","fNames","fWeb"].forEach(i => $(i).value = "");
+    $("fAll").checked = false;
     fCat = state.cat !== "all" ? state.cat : null;
     fNow = false; $("fNow").setAttribute("aria-pressed","false");
     $("fFrat").checked = state.mode === "frat";
@@ -755,7 +814,30 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
     renderPicker(); openSheet("newScrim");
     setTimeout(() => $("fTitle").focus(), 250);
   }
-  $("fab").addEventListener("click", openNew);
+  $("fab").addEventListener("click", () => state.mode === "interest" ? openInterest() : openNew());
+
+  // ---------- new interest ----------
+  function openInterest(){
+    ["iText","iWhen","iLoc","iWeb"].forEach(i => $(i).value = "");
+    $("iCount").textContent = "0"; $("iErr").textContent = "";
+    openSheet("intScrim");
+    setTimeout(() => $("iText").focus(), 250);
+  }
+  $("iText").addEventListener("input", () => { $("iCount").textContent = $("iText").value.length; });
+  $("iPost").addEventListener("click", async () => {
+    const text = $("iText").value.trim();
+    if (!text){ $("iErr").textContent = "Describe what you're into so people can find you."; $("iText").focus(); return; }
+    $("iPost").disabled = true;
+    try {
+      await api("POST", "/api/moves", {
+        kind: "interest", title: text,
+        time: $("iWhen").value.trim(), location: $("iLoc").value.trim(),
+        website: $("iWeb").value,
+      });
+      closeSheet("intScrim"); toast("Interest shared"); load();
+    } catch (e) { $("iErr").textContent = e.message; }
+    finally { $("iPost").disabled = false; }
+  });
   $("fNow").addEventListener("click", () => {
     fNow = !fNow; $("fNow").setAttribute("aria-pressed", fNow);
     if (fNow) $("fTime").value = "";
@@ -765,7 +847,6 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
   $("fPost").addEventListener("click", async () => {
     const title = $("fTitle").value.trim();
     if (!title){ $("fErr").textContent = "Add a short title so people know what the move is."; $("fTitle").focus(); return; }
-    const going = parseInt($("fGoing").value, 10);
     const names = $("fNames").value.split(",").map(s => s.trim()).filter(Boolean).slice(0,30);
     $("fPost").disabled = true;
     try {
@@ -773,8 +854,8 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
         title, category: fCat || "", frat: $("fFrat").checked,
         time: fNow ? "now" : ($("fTime").value || ""),
         location: $("fLoc").value.trim(),
-        going: Number.isFinite(going) && going > 0 ? going : 0,
-        names,
+        allWelcome: $("fAll").checked,
+        names, website: $("fWeb").value,
       });
       closeSheet("newScrim"); toast("Move posted"); load();
     } catch (e) { $("fErr").textContent = e.message; }
@@ -795,24 +876,28 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
     const m = state.moves.find(x => x.id === state.openId);
     if (!m){ if (state.openId) closeSheet("detScrim"); return; }
     const c = catOf(m.category);
+    const isI = m.kind === "interest";
     $("dTitle").textContent = m.title;
+    $("dTitle").classList.toggle("itext", isI);
     $("dFire").classList.toggle("lit", m.upvoted);
     $("dFireN").textContent = m.upvotes;
     $("dFireL").textContent = m.upvoted ? "Upvoted" : "Upvote";
     const meta = $("dMeta"); meta.textContent = "";
     const row = (ic, txt) => meta.append(el("div", {}, el("span", {"aria-hidden":"true", text:ic}), el("span", {text:txt})));
-    if (c) row(c.e, c.label + (m.frat ? " · Frat move" : ""));
+    if (isI) row("💡", "Interest");
+    else if (c) row(c.e, c.label + (m.frat ? " · Frat move" : ""));
     else if (m.frat) row("🏠", "Frat move");
+    if (m.allWelcome) row("🙌", "All are welcome");
     if (m.time) row("🕒", fmtTime(m.time));
     if (m.location) row("📍", m.location);
-    row("👥", `${m.going || 0} going`);
-    row("✍️", "Posted " + ago(m.createdAt));
+    row("👥", isI ? `${m.going || 0} interested` : `${m.going || 0} going`);
+    row("✍️", (isI ? "Shared " : "Posted ") + ago(m.createdAt));
 
     const nm = $("dNames"); nm.textContent = "";
     (m.names || []).forEach(n => nm.append(el("span", {class:"name", text:n})));
 
     const act = $("dActions"); act.textContent = "";
-    act.append(el("button", {class:"primary", type:"button", onclick:() => toggleGoing(m)}, m.goingMine ? "✓ You're going" : "I'm going"));
+    act.append(el("button", {class:"primary", type:"button", onclick:() => toggleGoing(m)}, isI ? (m.goingMine ? "✓ You're in" : "I'm interested") : (m.goingMine ? "✓ You're going" : "I'm going")));
     if (m.mine){
       const armed = state.delArmed && state.delArmed.id === m.id && Date.now() - state.delArmed.at < 4000;
       const del = el("button", {class:"ghost danger" + (armed ? " confirm" : ""), type:"button"}, armed ? "Tap to confirm" : "Delete");
