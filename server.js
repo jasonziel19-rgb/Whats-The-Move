@@ -388,7 +388,21 @@ app.get("/stats", async (req, res) => {
 });
 
 app.get("/healthz", (req, res) => res.send("ok"));
-app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
+// Homepage, with the site's own address filled into the link-preview tags
+// (iMessage, Instagram, Snapchat, etc. need a full https:// link to the preview image).
+const fs = require("fs");
+const INDEX_HTML = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
+app.get("/", (req, res) => {
+  const origin = process.env.SITE_URL || `${req.protocol}://${req.get("host")}`;
+  res.type("html").send(INDEX_HTML.replaceAll("__ORIGIN__", origin.replace(/\/$/, "")));
+});
+// Link-preview image and home-screen icon
+const sendImg = name => (req, res) => {
+  res.set("Cache-Control", "public, max-age=86400");
+  res.sendFile(path.join(__dirname, name));
+};
+app.get("/og.png", sendImg("og.png"));
+app.get("/icon.png", sendImg("icon.png"));
 
 // Clear out moves older than a week, once an hour
 setInterval(() => {
