@@ -1,0 +1,16 @@
+{
+  "name": "whats-the-move",
+  "version": "1.0.0",
+  "description": "What's The Move - see what your friends and campus are doing right now",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
+  }
+}

@@ -1,0 +1,948 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>What's The Move</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EAF1FF; --surface:#FFFFFF; --ink:#0A1A3F; --muted:#51618A;
+  --line:#CFDCF7; --blue:#2453F0; --blue-ink:#FFFFFF; --deep:#0B2A7A;
+  --sky:#BCD2FF; --glow:#5CE1FF; --chip:#DCE7FF; --danger:#C4314B;
+  --head-bg:#0B2A7A; --head-ink:#FFFFFF;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#06122E; --surface:#0E1F4A; --ink:#EAF1FF; --muted:#9DB0DD;
+    --line:#1F3570; --blue:#4B78FF; --blue-ink:#FFFFFF; --deep:#0B2A7A;
+    --sky:#2A4590; --chip:#14295E; --danger:#FF6B84;
+    --head-bg:#0A1F5C; --head-ink:#FFFFFF; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#06122E; --surface:#0E1F4A; --ink:#EAF1FF; --muted:#9DB0DD;
+  --line:#1F3570; --blue:#4B78FF; --blue-ink:#FFFFFF; --deep:#0B2A7A;
+  --sky:#2A4590; --chip:#14295E; --danger:#FF6B84;
+  --head-bg:#0A1F5C; --head-ink:#FFFFFF; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-size:16px; line-height:1.4; -webkit-tap-highlight-color:transparent;
+}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--glow);outline-offset:2px}
+
+/* Header */
+header{
+  background:var(--head-bg); color:var(--head-ink);
+  padding:18px 18px 22px; border-radius:0 0 28px 28px;
+  position:relative; overflow:hidden;
+}
+header::after{
+  content:""; position:absolute; right:-60px; top:-70px; width:220px; height:220px;
+  border-radius:50%; background:radial-gradient(circle,rgba(92,225,255,.35),transparent 65%);
+  pointer-events:none;
+}
+.wrap{max-width:640px;margin:0 auto}
+.brand{display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{
+  margin:0; font-weight:800; font-size:clamp(32px,9vw,44px); line-height:.95;
+  letter-spacing:-.03em;
+}
+h1 .q{color:var(--glow)}
+.live{display:flex;align-items:center;gap:6px;font-size:14px;opacity:.9;white-space:nowrap}
+.live i{width:9px;height:9px;border-radius:50%;background:var(--glow);box-shadow:0 0 0 0 rgba(92,225,255,.7);animation:pulse 2s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 9px rgba(92,225,255,0)}100%{box-shadow:0 0 0 0 rgba(92,225,255,0)}}
+@media (prefers-reduced-motion:reduce){.live i{animation:none}}
+
+/* Mode switch */
+.switch{
+  margin-top:18px; display:grid; grid-template-columns:1fr 1fr; position:relative;
+  background:rgba(255,255,255,.12); border-radius:999px; padding:4px;
+}
+.switch button{
+  position:relative; z-index:1; border:0; background:none; color:#fff;
+  padding:11px 8px; border-radius:999px; font-weight:600; font-size:15px;
+  transition:color .2s;
+}
+.switch button[aria-pressed="true"]{color:var(--deep)}
+.switch .knob{
+  position:absolute; top:4px; bottom:4px; left:4px; width:calc(50% - 4px);
+  background:#fff; border-radius:999px; transition:transform .25s cubic-bezier(.3,.7,.3,1);
+}
+.switch[data-mode="frat"] .knob{transform:translateX(100%)}
+
+/* Category chips */
+.cats{
+  display:flex; gap:8px; overflow-x:auto; padding:16px 18px 6px; scrollbar-width:none;
+  max-width:640px; margin:0 auto;
+}
+.cats::-webkit-scrollbar{display:none}
+.cat{
+  flex:none; border:1.5px solid var(--line); background:var(--surface);
+  border-radius:999px; padding:8px 14px; font-size:15px; font-weight:600; white-space:nowrap;
+}
+.cat[aria-pressed="true"]{background:var(--blue);border-color:var(--blue);color:var(--blue-ink)}
+
+/* List */
+main{padding:8px 16px 120px}
+.count{color:var(--muted);font-size:14px;margin:8px 4px 10px}
+.list{display:flex;flex-direction:column;gap:12px}
+.move{
+  display:block; width:100%; text-align:left; background:var(--surface);
+  border:1.5px solid var(--line); border-radius:20px; padding:16px;
+}
+.move:active{transform:scale(.99)}
+.move-top{display:flex;gap:12px;align-items:flex-start}
+.emoji{
+  flex:none; width:46px; height:46px; border-radius:14px; background:var(--chip);
+  display:grid; place-items:center; font-size:24px;
+}
+.move h3{margin:2px 0 4px;font-size:19px;font-weight:700;line-height:1.2;overflow-wrap:anywhere}
+.meta{display:flex;flex-wrap:wrap;gap:6px 14px;color:var(--muted);font-size:14px}
+.badge{
+  display:inline-block; font-size:12px; font-weight:600; padding:2px 8px; border-radius:999px;
+  background:var(--deep); color:#fff; margin-left:6px; vertical-align:2px;
+}
+.latest{
+  margin-top:12px; padding:10px 12px; border-radius:12px; background:var(--chip);
+  font-size:14px; overflow-wrap:anywhere;
+}
+.latest b{font-weight:600;color:var(--blue)}
+:root[data-theme="dark"] .latest b{color:var(--glow)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .latest b{color:var(--glow)}}
+.names{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.name{font-size:13px;padding:3px 10px;border-radius:999px;border:1px solid var(--line)}
+
+.empty{
+  text-align:center; padding:48px 20px; color:var(--muted);
+}
+.empty strong{display:block;color:var(--ink);font-size:22px;margin-bottom:6px}
+.empty button{
+  margin-top:16px; border:0; background:var(--blue); color:var(--blue-ink);
+  padding:12px 20px; border-radius:999px; font-weight:600;
+}
+
+/* FAB */
+.fab{
+  position:fixed; right:20px; bottom:calc(22px + env(safe-area-inset-bottom,0px));
+  width:66px; height:66px; border-radius:50%; border:0;
+  background:var(--blue); color:#fff; font-size:38px; line-height:1; font-weight:400;
+  box-shadow:0 10px 28px rgba(36,83,240,.45); display:grid; place-items:center;
+}
+.fab:active{transform:scale(.94)}
+.fab[hidden]{display:none}
+
+/* Sheets */
+.scrim{
+  position:fixed; inset:0; background:rgba(4,12,36,.55); z-index:20;
+  display:flex; align-items:flex-end; justify-content:center;
+  opacity:0; pointer-events:none; transition:opacity .2s;
+}
+.scrim.open{opacity:1;pointer-events:auto}
+.sheet{
+  width:100%; max-width:640px; max-height:92%; overflow-y:auto;
+  background:var(--surface); border-radius:26px 26px 0 0;
+  padding:16px 18px calc(22px + env(safe-area-inset-bottom,0px));
+  transform:translateY(30px); transition:transform .25s cubic-bezier(.3,.7,.3,1);
+}
+.scrim.open .sheet{transform:none}
+@media (min-width:700px){.scrim{align-items:center}.sheet{border-radius:26px;max-height:86%}}
+.grab{width:42px;height:5px;border-radius:5px;background:var(--line);margin:4px auto 12px}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.sheet h2{margin:0;font-size:26px;font-weight:800;letter-spacing:-.02em;overflow-wrap:anywhere}
+.x{border:0;background:var(--chip);width:38px;height:38px;border-radius:50%;font-size:20px;flex:none}
+label{display:block;font-weight:600;font-size:15px;margin:16px 0 6px}
+label small{font-weight:400;color:var(--muted)}
+input[type=text],input[type=number],input[type=time],textarea{
+  width:100%; border:1.5px solid var(--line); background:var(--bg); border-radius:14px;
+  padding:13px 14px; font-size:16px; min-height:50px;
+}
+textarea{resize:vertical;min-height:80px}
+input:focus,textarea:focus{outline:none;border-color:var(--blue)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.picker{display:flex;flex-wrap:wrap;gap:8px}
+.picker .cat{padding:9px 13px}
+.row{display:flex;gap:8px;align-items:center}
+.row input{flex:1}
+.mini{
+  flex:none; border:1.5px solid var(--line); background:var(--surface); border-radius:12px;
+  padding:0 14px; min-height:50px; font-weight:600;
+}
+.mini[aria-pressed="true"]{background:var(--blue);color:var(--blue-ink);border-color:var(--blue)}
+.toggle{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  margin-top:18px; padding:12px 14px; border:1.5px solid var(--line); border-radius:14px;
+}
+.toggle span{font-weight:600}
+.toggle small{display:block;font-weight:400;color:var(--muted);font-size:13px}
+.tg{position:relative;width:52px;height:32px;flex:none}
+.tg input{opacity:0;width:100%;height:100%;margin:0;position:absolute;inset:0;cursor:pointer;z-index:1}
+.tg i{position:absolute;inset:0;border-radius:999px;background:var(--line);transition:background .2s}
+.tg i::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.tg input:checked + i{background:var(--blue)}
+.tg input:checked + i::after{transform:translateX(20px)}
+.tg input:focus-visible + i{outline:3px solid var(--glow);outline-offset:2px}
+.primary{
+  width:100%; margin-top:22px; border:0; background:var(--blue); color:var(--blue-ink);
+  min-height:54px; border-radius:16px; font-size:17px; font-weight:700;
+}
+.primary:disabled{opacity:.5}
+.err{color:var(--danger);font-size:14px;margin-top:10px;min-height:1em}
+
+/* Detail */
+.dmeta{display:grid;gap:10px;margin-top:14px}
+.dmeta div{display:flex;gap:10px;align-items:center;font-size:16px}
+.dmeta span:first-child{width:24px;text-align:center}
+.going-row{display:flex;gap:10px;margin-top:16px}
+.going-row .primary{margin:0;flex:1}
+.going-row .ghost{
+  border:1.5px solid var(--line); background:var(--surface); border-radius:16px; padding:0 16px; font-weight:600;
+}
+.ghost.danger{color:var(--danger)}
+.updates{margin-top:22px}
+.updates h4{margin:0 0 10px;font-size:17px}
+.upd{border-left:3px solid var(--blue);padding:4px 0 4px 12px;margin-bottom:12px;overflow-wrap:anywhere}
+.upd time{display:block;font-size:13px;color:var(--muted)}
+.noupd{color:var(--muted);font-size:15px}
+
+.toast{
+  position:fixed; left:50%; bottom:calc(100px + env(safe-area-inset-bottom,0px));
+  transform:translate(-50%,20px); background:var(--ink); color:var(--bg);
+  padding:11px 18px; border-radius:999px; font-weight:600; font-size:15px;
+  opacity:0; transition:all .25s; z-index:40; pointer-events:none; white-space:nowrap;
+}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.notice{
+  margin:16px; padding:14px 16px; border-radius:16px; background:var(--chip); font-size:15px;
+}
+
+/* Card side column */
+.move{position:relative;cursor:pointer}
+.move-body{min-width:0;flex:1}
+.move-top{align-items:stretch}
+.move-top .emoji{align-self:flex-start}
+.side{flex:none;display:flex}
+.side .sbtn{width:62px;min-height:62px;height:100%;border-radius:16px;gap:2px;font-size:15px}
+.side .sbtn .ic{font-size:24px}
+.move h3{margin-top:0}
+.latest + .latest{margin-top:8px}
+.latest.cm{background:transparent;border:1.5px solid var(--line)}
+.ccomp{display:flex;gap:8px;margin-top:12px}
+.ccomp input{
+  flex:1; min-width:0; border:1.5px solid var(--line); background:var(--bg); border-radius:12px;
+  padding:10px 12px; font-size:16px; min-height:44px;
+}
+.ccomp input:focus{outline:none;border-color:var(--blue)}
+.ccomp button{
+  flex:none; border:0; background:var(--blue); color:var(--blue-ink); border-radius:12px;
+  padding:0 14px; min-height:44px; font-weight:600;
+}
+.ccomp button:disabled{opacity:.5}
+.sbtn{
+  border:1.5px solid var(--line); background:var(--surface); border-radius:14px;
+  min-width:52px; min-height:44px; padding:4px 8px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; line-height:1.1; font-size:13px; font-weight:700;
+}
+.sbtn .ic{font-size:19px}
+.sbtn.lit{background:#FFE7D1;border-color:#FF9A4D;color:#B44400}
+:root[data-theme="dark"] .sbtn.lit{background:#4A2410;border-color:#FF8A3D;color:#FFC08F}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .sbtn.lit{background:#4A2410;border-color:#FF8A3D;color:#FFC08F}}
+.desc{
+  margin-top:6px; color:var(--ink); opacity:.85; font-size:15px; overflow-wrap:anywhere;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.ddesc{margin:14px 0 0;font-size:16px;white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* Detail header with fire box */
+.dhead{display:flow-root}
+.dhead .firebox{float:right;margin:0 0 8px 14px}
+.dhead h2{min-width:0}
+.dhead .dmeta{margin-top:12px}
+.firebox{
+  flex:none; width:78px; border:1.5px solid var(--line); border-radius:18px; background:var(--bg);
+  padding:8px 4px; text-align:center; font-weight:800;
+}
+.firebox .ic{font-size:30px;display:block;line-height:1.1}
+.firebox .n{font-size:22px;display:block}
+.firebox small{display:block;font-size:12px;font-weight:600;color:var(--muted)}
+.firebox.lit{background:#FFE7D1;border-color:#FF9A4D;color:#B44400}
+.firebox.lit small{color:#B44400}
+:root[data-theme="dark"] .firebox.lit{background:#4A2410;border-color:#FF8A3D;color:#FFC08F}
+:root[data-theme="dark"] .firebox.lit small{color:#FFC08F}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .firebox.lit{background:#4A2410;border-color:#FF8A3D;color:#FFC08F}
+  :root:not([data-theme="light"]) .firebox.lit small{color:#FFC08F}
+}
+.xrow{display:flex;justify-content:flex-end;margin-bottom:6px}
+
+/* Comments */
+.comments{margin-top:22px}
+.comments h4{margin:0 0 10px;font-size:17px}
+.cmt{display:flex;gap:10px;margin-bottom:12px}
+#dComments.scroll{overflow-y:auto;overscroll-behavior:contain;border:1.5px solid var(--line);border-radius:14px;padding:12px 12px 0}
+.cmt img{width:30px;height:30px;border-radius:50%;flex:none}
+.cmt div{min-width:0;overflow-wrap:anywhere}
+.cmt b{font-weight:600;font-size:14px}
+.cmt time{font-size:13px;color:var(--muted);margin-left:6px}
+
+/* Fire burst (lives in an overlay so re-renders don't cut it off) */
+.burst{position:fixed;inset:0;pointer-events:none;z-index:60}
+.flame{position:absolute;font-size:22px;transform:translate(-50%,-50%);will-change:transform,opacity}
+.flame.big{font-size:54px;animation:bigpop .9s cubic-bezier(.2,.9,.3,1.3) forwards}
+.flame.spark{animation:spark .9s ease-out forwards}
+@keyframes bigpop{
+  0%{transform:translate(-50%,-50%) scale(.3);opacity:0}
+  35%{transform:translate(-50%,-90%) scale(1.35);opacity:1}
+  100%{transform:translate(-50%,-190%) scale(.9);opacity:0}
+}
+@keyframes spark{
+  0%{transform:translate(-50%,-50%) scale(.6);opacity:1}
+  100%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.4) rotate(var(--r));opacity:0}
+}
+@keyframes thump{0%{transform:scale(1)}40%{transform:scale(1.25)}100%{transform:scale(1)}}
+.thump{animation:thump .45s ease-out}
+@media (prefers-reduced-motion:reduce){.flame,.thump{animation:none!important;opacity:0}}
+
+/* Colored update/comment bubbles — vibrant fills, white text (all ≥4.5:1 contrast) */
+.pop{background:var(--c);color:#2E1065;border-radius:14px;padding:10px 12px;overflow-wrap:anywhere}
+.pop b,.pop time{color:#5B21B6!important}
+.latest.pop,.latest.cm.pop{background:var(--c);border:0}
+.upd.pop{border-left:0;margin-bottom:10px}
+.upd.pop time{color:#5B21B6}
+.cmt.pop{margin-bottom:10px;align-items:flex-start}
+.cmt.pop img{outline:2px solid rgba(255,255,255,.8)}
+.cmt.pop time{color:#5B21B6}
+.ghost.confirm{background:var(--danger);color:#fff;border-color:var(--danger)}
+
+.upd-c{color:#06403B}
+.upd-c b,.upd-c time{color:#0B6B62!important}
+
+.avatar{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+  background:#5B21B6;color:#fff;font-size:12px;font-weight:700}
+.as{margin:-4px 0 12px;font-size:14px;color:var(--muted)}
+.as b{color:var(--ink);font-weight:600}
+.link{border:0;background:none;padding:0;color:var(--blue);font-weight:600;text-decoration:underline}
+#nameScrim{z-index:30}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="brand">
+      <h1>What's The<br>Move<span class="q">?</span></h1>
+      <div class="live"><i></i><span id="liveLabel">Live</span></div>
+    </div>
+    <div class="switch" id="modeSwitch" data-mode="any" role="group" aria-label="Show moves">
+      <div class="knob"></div>
+      <button type="button" data-mode="any" aria-pressed="true">Any move</button>
+      <button type="button" data-mode="frat" aria-pressed="false">Frat moves</button>
+    </div>
+  </div>
+</header>
+
+<nav class="cats" id="cats" aria-label="Categories"></nav>
+
+<main class="wrap">
+  <div id="notice"></div>
+  <p class="count" id="count"></p>
+  <div class="list" id="list" aria-live="polite"></div>
+</main>
+
+<button class="fab" id="fab" aria-label="Post a new move">+</button>
+
+<!-- New move sheet -->
+<div class="scrim" id="newScrim" aria-hidden="true">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="newTitle">
+    <div class="sheet-head">
+      <h2 id="newTitle">Post a move</h2>
+      <button class="x" data-close aria-label="Close">✕</button>
+    </div>
+    <label for="fTitle">What's the move?</label>
+    <input type="text" id="fTitle" maxlength="80" placeholder="Late-night tacos at Pancho's" autocomplete="off">
+
+    <label>Category <small>(optional)</small></label>
+    <div class="picker" id="fCats"></div>
+
+    <label for="fTime">When <small>(optional)</small></label>
+    <div class="row">
+      <button type="button" class="mini" id="fNow" aria-pressed="false">Right now</button>
+      <input type="time" id="fTime">
+    </div>
+
+    <label for="fLoc">Where <small>(optional)</small></label>
+    <input type="text" id="fLoc" maxlength="80" placeholder="Benson Center" autocomplete="off">
+
+    <div class="grid2">
+      <div>
+        <label for="fGoing">How many going <small>(optional)</small></label>
+        <input type="number" id="fGoing" min="0" max="9999" inputmode="numeric" placeholder="0">
+      </div>
+      <div>
+        <label for="fNames">Who's going <small>(optional)</small></label>
+        <input type="text" id="fNames" maxlength="200" placeholder="Maya, Leo" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="toggle">
+      <span>Frat move<small>Shows under Frat moves</small></span>
+      <label class="tg" style="margin:0"><input type="checkbox" id="fFrat" aria-label="Frat move"><i></i></label>
+    </div>
+
+    <button class="primary" id="fPost">Post move</button>
+    <div class="err" id="fErr"></div>
+  </div>
+</div>
+
+<!-- Detail sheet -->
+<div class="scrim" id="detScrim" aria-hidden="true">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+    <div class="xrow"><button class="x" data-close aria-label="Close">✕</button></div>
+    <div class="dhead">
+      <button type="button" class="firebox" id="dFire" aria-label="Upvote this move"><span class="ic">🔥</span><span class="n" id="dFireN">0</span><small id="dFireL">Upvote</small></button>
+      <h2 id="dTitle"></h2>
+      <div class="dmeta" id="dMeta"></div>
+    </div>
+    <div class="names" id="dNames"></div>
+    <div class="going-row" id="dActions"></div>
+
+    <div class="updates">
+      <h4>Updates</h4>
+      <div id="uCompose">
+        <label for="uText" style="margin-top:0">Post an update</label>
+        <div class="row">
+          <input type="text" id="uText" maxlength="140" placeholder="Line's out the door" autocomplete="off">
+          <button class="mini" id="uPost" style="background:var(--blue);color:var(--blue-ink);border-color:var(--blue)">Post</button>
+        </div>
+        <div class="err" id="uErr"></div>
+      </div>
+      <div id="dUpdates"></div>
+    </div>
+
+    <div class="comments" id="cSection">
+      <h4 id="cHead">Comments</h4>
+      <p class="as" id="cAs" hidden>Commenting as <b id="cAsName"></b> · <button type="button" class="link" id="cAsChange">Change</button></p>
+      <div id="cCompose">
+        <label for="cText" style="margin-top:0">Add a comment</label>
+        <div class="row">
+          <input type="text" id="cText" maxlength="280" placeholder="I'm down, save me a spot" autocomplete="off">
+          <button class="mini" id="cPost" style="background:var(--blue);color:var(--blue-ink);border-color:var(--blue)">Post</button>
+        </div>
+        <div class="err" id="cErr"></div>
+      </div>
+      <div id="dComments"></div>
+    </div>
+  </div>
+</div>
+<div class="burst" id="burst" aria-hidden="true"></div>
+
+<!-- Name sheet -->
+<div class="scrim" id="nameScrim" aria-hidden="true">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="nTitle">
+    <div class="sheet-head">
+      <h2 id="nTitle">What should people call you?</h2>
+      <button class="x" data-close aria-label="Close">✕</button>
+    </div>
+    <label for="nName">Your name</label>
+    <input type="text" id="nName" maxlength="30" placeholder="Jordan" autocomplete="given-name">
+    <button class="primary" id="nSave">Save name</button>
+    <div class="err" id="nErr"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+  const CATS = [
+    {id:"social", label:"Social", e:"👋"},
+    {id:"party", label:"Party", e:"🎉"},
+    {id:"activity", label:"Activity", e:"🏀"},
+    {id:"food", label:"Food", e:"🍕"},
+    {id:"campus", label:"Campus event", e:"🏛️"},
+    {id:"clubs", label:"Club", e:"🧩"},
+    {id:"study", label:"Study", e:"📚"},
+  ];
+  const catOf = id => CATS.find(c => c.id === id);
+  // Light purple shades for comments, light turquoise for updates
+  const COLORS = ["#E9D5FF","#DDD6FE","#F3E8FF","#E4CCFF","#D8CCFF","#EBDDFF","#F0D6FF","#E2D9FF","#D9C2FF","#EEE4FF","#E6D0FA","#DCD0FF"];
+  const TEAL = ["#B8F2EC","#A7EDE6","#C6F5F0","#9DE8E0","#B0EFE9","#CFF7F3","#A2EBE3","#BDF3EE","#AAEEE7","#C2F4EF","#B4F0EA","#99E6DE"];
+  const colorOf = (item, pal = COLORS) => pal[item.c] || pal[0];
+  const WINDOW_MS = 24 * 60 * 60 * 1000;
+  const POLL_MS = 5000;
+
+  const state = { mode:"any", cat:"all", moves:[], openId:null, ready:false, online:true, delArmed:null };
+
+  // Each phone/browser gets a private random id. It decides who can delete or update a move
+  // and makes sure each person only upvotes once.
+  function getDevice(){
+    try {
+      let d = localStorage.getItem("wtm-device");
+      if (!d || !/^[A-Za-z0-9_-]{16,64}$/.test(d)){
+        d = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now()).replace(/[^A-Za-z0-9_-]/g, "");
+        localStorage.setItem("wtm-device", d);
+      }
+      return d;
+    } catch { return "nostorage" + Math.random().toString(36).slice(2, 14); }
+  }
+  const DEVICE = getDevice();
+  const getName = () => { try { return localStorage.getItem("wtm-name") || ""; } catch { return ""; } };
+  const setName = n => { try { localStorage.setItem("wtm-name", n); } catch {} };
+
+  const $ = id => document.getElementById(id);
+  const el = (tag, props = {}, ...kids) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(props)) {
+      if (k === "class") n.className = v;
+      else if (k === "text") n.textContent = v;
+      else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+      else n.setAttribute(k, v);
+    }
+    kids.flat().forEach(c => c != null && n.append(c));
+    return n;
+  };
+
+  // ---------- API ----------
+  async function api(method, url, body){
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type":"application/json", "X-Device": DEVICE },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    let data = {};
+    try { data = await res.json(); } catch {}
+    if (!res.ok) throw new Error(data.error || "Something went wrong. Try again.");
+    return data;
+  }
+  let loading = false;
+  async function load(){
+    if (loading) return; loading = true;
+    try {
+      const { moves } = await api("GET", "/api/moves");
+      // keep optimistic upvotes that the server hasn't confirmed yet
+      for (const m of moves) if (pendingUp.has(m.id) && !m.upvoted){ m.upvoted = true; m.upvotes++; }
+      state.moves = moves; state.ready = true;
+      if (!state.online){ state.online = true; $("liveLabel").textContent = "Live"; $("notice").textContent = ""; }
+      render(); renderDetail();
+    } catch {
+      state.ready = true;
+      if (state.online){
+        state.online = false; $("liveLabel").textContent = "Reconnecting";
+        $("notice").textContent = "";
+        $("notice").append(el("div", {class:"notice", text:"Can't reach the server right now. Retrying…"}));
+        render();
+      }
+    } finally { loading = false; }
+  }
+
+  // ---------- helpers ----------
+  function fmtTime(t){
+    if (!t) return "";
+    if (t === "now") return "Right now";
+    const [h, m] = t.split(":").map(Number);
+    if (isNaN(h)) return t;
+    const ap = h >= 12 ? "PM" : "AM";
+    return `${((h + 11) % 12) + 1}:${String(m).padStart(2,"0")} ${ap}`;
+  }
+  function ago(ms){
+    const s = Math.max(0, (Date.now() - ms) / 1000);
+    if (s < 60) return "just now";
+    if (s < 3600) return `${Math.floor(s/60)}m ago`;
+    if (s < 86400) return `${Math.floor(s/3600)}h ago`;
+    return `${Math.floor(s/86400)}d ago`;
+  }
+  function toast(msg){
+    const t = $("toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 1800);
+  }
+  function initials(name){
+    return (name || "?").split(/\s+/).filter(Boolean).slice(0,2).map(w => w[0]).join("").toUpperCase() || "?";
+  }
+
+  // ---------- mode switch ----------
+  $("modeSwitch").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    state.mode = b.dataset.mode;
+    $("modeSwitch").dataset.mode = state.mode;
+    $("modeSwitch").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    render();
+  });
+
+  // ---------- category chips ----------
+  function renderCats(){
+    const wrap = $("cats"); wrap.textContent = "";
+    [{id:"all", label:"All", e:"✨"}, ...CATS].forEach(c => {
+      wrap.append(el("button", {
+        class:"cat", type:"button", "aria-pressed": state.cat === c.id,
+        onclick:() => { state.cat = c.id; renderCats(); render(); }
+      }, `${c.e} ${c.label}`));
+    });
+  }
+
+  // ---------- list ----------
+  function visibleMoves(){
+    const cutoff = Date.now() - WINDOW_MS;
+    return state.moves
+      .filter(m => (m.updatedAt || m.createdAt || 0) >= cutoff)
+      .filter(m => state.mode === "frat" ? m.frat : true)
+      .filter(m => state.cat === "all" || m.category === state.cat)
+      .sort((a,b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
+  }
+
+  const drafts = {};
+  function render(){
+    const ae = document.activeElement;
+    const focusId = ae && ae.dataset && ae.dataset.cid;
+    const caret = focusId ? [ae.selectionStart, ae.selectionEnd] : null;
+    renderList();
+    if (focusId){
+      const again = $("list").querySelector(`input[data-cid="${CSS.escape(focusId)}"]`);
+      if (again){ again.focus({preventScroll:true}); try { again.setSelectionRange(caret[0], caret[1]); } catch {} }
+    }
+  }
+  function renderList(){
+    const list = $("list"); list.textContent = "";
+    if (!state.ready){ $("count").textContent = "Loading moves…"; return; }
+    const moves = visibleMoves();
+    const scope = state.mode === "frat" ? "frat " : "";
+    $("count").textContent = moves.length
+      ? `${moves.length} ${scope}move${moves.length === 1 ? "" : "s"} in the last 24 hours`
+      : "";
+
+    if (!moves.length){
+      const c = state.cat !== "all" ? catOf(state.cat) : null;
+      list.append(el("div", {class:"empty"},
+        el("strong", {text: c ? `No ${c.label.toLowerCase()} moves yet` : `No ${scope}moves yet`}),
+        "Be the one who starts something.", el("br"),
+        el("button", {type:"button", onclick:openNew}, "Post a move")
+      ));
+      return;
+    }
+
+    moves.forEach(m => {
+      const c = catOf(m.category);
+      const meta = [];
+      if (m.time) meta.push(el("span", {text:"🕒 " + fmtTime(m.time)}));
+      if (m.location) meta.push(el("span", {text:"📍 " + m.location}));
+      if (m.going) meta.push(el("span", {text:`👥 ${m.going} going`}));
+      meta.push(el("span", {text: "Posted " + ago(m.createdAt)}));
+
+      const h3 = el("h3", {}, m.title);
+      if (m.frat) h3.append(el("span", {class:"badge", text:"Frat"}));
+
+      const lit = m.upvoted;
+      const fBtn = el("button", {class:"sbtn" + (lit ? " lit" : ""), type:"button",
+        "aria-label": lit ? `You upvoted this. ${m.upvotes} upvotes` : `Upvote this move. ${m.upvotes} upvotes`,
+        onclick:e => { e.stopPropagation(); upvote(m.id, e.currentTarget, true); }},
+        el("span", {class:"ic", "aria-hidden":"true", text:"🔥"}), String(m.upvotes));
+
+      const body = el("div", {class:"move-body"}, h3, el("div", {class:"meta"}, meta));
+
+      const card = el("div", {class:"move", role:"button", tabindex:"0", "aria-label":`Open ${m.title}`,
+        onclick:() => openDetail(m.id),
+        onkeydown:e => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); openDetail(m.id); } }},
+        el("div", {class:"move-top"},
+          el("div", {class:"emoji", "aria-hidden":"true", text: c ? c.e : "📌"}),
+          body,
+          el("div", {class:"side"}, fBtn)
+        )
+      );
+      if (m.names && m.names.length){
+        card.append(el("div", {class:"names"}, m.names.slice(0,6).map(n => el("span", {class:"name", text:n})),
+          m.names.length > 6 ? el("span", {class:"name", text:`+${m.names.length-6}`}) : null));
+      }
+      const ups = m.updates || [];
+      if (ups.length){
+        const last = ups[ups.length-1];
+        card.append(el("div", {class:"latest pop upd-c", style:`--c:${colorOf(last, TEAL)}`}, el("b", {text:`Update · ${ago(last.at)}: `}), last.text));
+      }
+      const cms = m.comments || [];
+      if (cms.length){
+        const last = cms[cms.length-1];
+        const more = cms.length > 1 ? ` (${cms.length} comments)` : "";
+        card.append(el("div", {class:"latest cm pop", style:`--c:${colorOf(last)}`}, el("b", {text:`💬 ${last.name}, ${ago(last.at)}${more}: `}), last.text));
+      }
+      const inp = el("input", {type:"text", maxlength:"280", placeholder:"Write a comment…",
+        "aria-label":`Comment on ${m.title}`, "data-cid":m.id, autocomplete:"off"});
+      inp.value = drafts[m.id] || "";
+      const btn = el("button", {type:"button"}, "Post");
+      const send = async () => {
+        const text = inp.value.trim(); if (!text) return;
+        btn.disabled = true;
+        const err = await addComment(m.id, text);
+        btn.disabled = false;
+        if (!err){ delete drafts[m.id]; inp.value = ""; toast("Comment posted"); }
+        else if (err !== "cancelled") toast(err);
+      };
+      inp.addEventListener("input", () => { drafts[m.id] = inp.value; });
+      inp.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Enter") send(); });
+      btn.addEventListener("click", send);
+      card.append(el("div", {class:"ccomp", onclick:e => e.stopPropagation()}, inp, btn));
+      list.append(card);
+    });
+  }
+
+  // ---------- sheets ----------
+  function openSheet(id){ const s = $(id); s.classList.add("open"); s.setAttribute("aria-hidden","false"); }
+  function closeSheet(id){
+    const s = $(id); s.classList.remove("open"); s.setAttribute("aria-hidden","true");
+    if (id === "detScrim") state.openId = null;
+    if (id === "nameScrim" && nameResolve){ nameResolve(null); nameResolve = null; }
+  }
+  document.querySelectorAll(".scrim").forEach(s => {
+    s.addEventListener("click", e => { if (e.target === s || e.target.closest("[data-close]")) closeSheet(s.id); });
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    if ($("nameScrim").classList.contains("open")) return closeSheet("nameScrim");
+    ["newScrim","detScrim"].forEach(id => $(id).classList.contains("open") && closeSheet(id));
+  });
+
+  // ---------- name (asked once, the first time you comment) ----------
+  let nameResolve = null;
+  function askName(){
+    return new Promise(resolve => {
+      nameResolve = resolve;
+      $("nName").value = getName(); $("nErr").textContent = "";
+      openSheet("nameScrim");
+      setTimeout(() => $("nName").focus(), 250);
+    });
+  }
+  function saveName(){
+    const n = $("nName").value.trim().slice(0, 30);
+    if (!n){ $("nErr").textContent = "Add a name so people know who's commenting."; return; }
+    setName(n);
+    const r = nameResolve; nameResolve = null;
+    closeSheet("nameScrim");
+    renderNameLine();
+    if (r) r(n);
+  }
+  $("nSave").addEventListener("click", saveName);
+  $("nName").addEventListener("keydown", e => { if (e.key === "Enter") saveName(); });
+  function renderNameLine(){
+    const n = getName();
+    $("cAs").hidden = !n;
+    $("cAsName").textContent = n;
+  }
+  $("cAsChange").addEventListener("click", () => askName());
+
+  // ---------- new move ----------
+  let fCat = null, fNow = false;
+  function renderPicker(){
+    const p = $("fCats"); p.textContent = "";
+    CATS.forEach(c => p.append(el("button", {
+      class:"cat", type:"button", "aria-pressed": fCat === c.id,
+      onclick:() => { fCat = fCat === c.id ? null : c.id; renderPicker(); }
+    }, `${c.e} ${c.label}`)));
+  }
+  function openNew(){
+    ["fTitle","fTime","fLoc","fGoing","fNames"].forEach(i => $(i).value = "");
+    fCat = state.cat !== "all" ? state.cat : null;
+    fNow = false; $("fNow").setAttribute("aria-pressed","false");
+    $("fFrat").checked = state.mode === "frat";
+    $("fErr").textContent = "";
+    renderPicker(); openSheet("newScrim");
+    setTimeout(() => $("fTitle").focus(), 250);
+  }
+  $("fab").addEventListener("click", openNew);
+  $("fNow").addEventListener("click", () => {
+    fNow = !fNow; $("fNow").setAttribute("aria-pressed", fNow);
+    if (fNow) $("fTime").value = "";
+  });
+  $("fTime").addEventListener("input", () => { if ($("fTime").value){ fNow = false; $("fNow").setAttribute("aria-pressed","false"); } });
+
+  $("fPost").addEventListener("click", async () => {
+    const title = $("fTitle").value.trim();
+    if (!title){ $("fErr").textContent = "Add a short title so people know what the move is."; $("fTitle").focus(); return; }
+    const going = parseInt($("fGoing").value, 10);
+    const names = $("fNames").value.split(",").map(s => s.trim()).filter(Boolean).slice(0,30);
+    $("fPost").disabled = true;
+    try {
+      await api("POST", "/api/moves", {
+        title, category: fCat || "", frat: $("fFrat").checked,
+        time: fNow ? "now" : ($("fTime").value || ""),
+        location: $("fLoc").value.trim(),
+        going: Number.isFinite(going) && going > 0 ? going : 0,
+        names,
+      });
+      closeSheet("newScrim"); toast("Move posted"); load();
+    } catch (e) { $("fErr").textContent = e.message; }
+    finally { $("fPost").disabled = false; }
+  });
+
+  // ---------- detail ----------
+  function openDetail(id){
+    state.openId = id;
+    ["uText","cText"].forEach(i => $(i).value = "");
+    ["uErr","cErr"].forEach(i => $(i).textContent = "");
+    renderDetail(); openSheet("detScrim");
+    $("detScrim").querySelector(".sheet").scrollTop = 0;
+    // Opening a move counts as your upvote (once per person)
+    setTimeout(() => upvote(id, $("dFire"), false), 280);
+  }
+  function renderDetail(){
+    const m = state.moves.find(x => x.id === state.openId);
+    if (!m){ if (state.openId) closeSheet("detScrim"); return; }
+    const c = catOf(m.category);
+    $("dTitle").textContent = m.title;
+    $("dFire").classList.toggle("lit", m.upvoted);
+    $("dFireN").textContent = m.upvotes;
+    $("dFireL").textContent = m.upvoted ? "Upvoted" : "Upvote";
+    const meta = $("dMeta"); meta.textContent = "";
+    const row = (ic, txt) => meta.append(el("div", {}, el("span", {"aria-hidden":"true", text:ic}), el("span", {text:txt})));
+    if (c) row(c.e, c.label + (m.frat ? " · Frat move" : ""));
+    else if (m.frat) row("🏠", "Frat move");
+    if (m.time) row("🕒", fmtTime(m.time));
+    if (m.location) row("📍", m.location);
+    row("👥", `${m.going || 0} going`);
+    row("✍️", "Posted " + ago(m.createdAt));
+
+    const nm = $("dNames"); nm.textContent = "";
+    (m.names || []).forEach(n => nm.append(el("span", {class:"name", text:n})));
+
+    const act = $("dActions"); act.textContent = "";
+    act.append(el("button", {class:"primary", type:"button", onclick:() => toggleGoing(m)}, m.goingMine ? "✓ You're going" : "I'm going"));
+    if (m.mine){
+      const armed = state.delArmed && state.delArmed.id === m.id && Date.now() - state.delArmed.at < 4000;
+      const del = el("button", {class:"ghost danger" + (armed ? " confirm" : ""), type:"button"}, armed ? "Tap to confirm" : "Delete");
+      del.addEventListener("click", () => {
+        if (armed){ state.delArmed = null; removeMove(m, del); return; }
+        state.delArmed = { id:m.id, at:Date.now() }; renderDetail();
+        setTimeout(() => { if (state.delArmed && state.delArmed.id === m.id){ state.delArmed = null; renderDetail(); } }, 4000);
+      });
+      act.append(del);
+    }
+
+    $("uCompose").hidden = !m.mine;
+    const ul = $("dUpdates"); ul.textContent = "";
+    const ups = (m.updates || []).slice().reverse();
+    if (!ups.length) ul.append(el("p", {class:"noupd", text:"No updates yet."}));
+    ups.forEach(u => ul.append(el("div", {class:"upd pop upd-c", style:`--c:${colorOf(u, TEAL)}`}, el("time", {text: ago(u.at)}), u.text)));
+
+    const cms = m.comments || [];
+    $("cHead").textContent = cms.length ? `Comments (${cms.length})` : "Comments";
+    renderComments(cms);
+  }
+
+  function renderComments(cms){
+    const box = $("dComments");
+    const keep = box.scrollTop;
+    box.textContent = "";
+    box.classList.remove("scroll"); box.style.maxHeight = "";
+    if (!cms.length){ box.append(el("p", {class:"noupd", text:"No comments yet. Say something."})); return; }
+    cms.slice().reverse().forEach(c => {
+      const row = el("div", {class:"cmt pop", style:`--c:${colorOf(c)}`});
+      row.append(el("span", {class:"avatar", "aria-hidden":"true", text:initials(c.name)}));
+      row.append(el("div", {}, el("b", {text:c.name || "Someone"}), el("time", {text:ago(c.at)}), el("br"), c.text));
+      box.append(row);
+    });
+    if (cms.length > 10){
+      box.classList.add("scroll");
+      const tenth = box.children[9];
+      box.style.maxHeight = (tenth.offsetTop - box.offsetTop + tenth.offsetHeight + 12) + "px";
+      box.scrollTop = keep;
+    }
+  }
+
+  // Returns null on success, or an error message
+  async function addComment(id, text){
+    let name = getName();
+    if (!name){ name = await askName(); if (!name) return "cancelled"; }
+    try { await api("POST", `/api/moves/${encodeURIComponent(id)}/comments`, { text, name }); load(); return null; }
+    catch (e) { return e.message; }
+  }
+  $("cPost").addEventListener("click", postComment);
+  $("cText").addEventListener("keydown", e => { if (e.key === "Enter") postComment(); });
+  async function postComment(){
+    const text = $("cText").value.trim();
+    if (!text || !state.openId) return;
+    $("cPost").disabled = true;
+    const err = await addComment(state.openId, text);
+    $("cPost").disabled = false;
+    if (!err){ $("cText").value = ""; $("cErr").textContent = ""; toast("Comment posted"); }
+    else if (err !== "cancelled") $("cErr").textContent = err;
+  }
+
+  // ---------- upvote ----------
+  function burst(anchor){
+    if (!anchor || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const r = anchor.getBoundingClientRect();
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const layer = $("burst");
+    layer.append(el("span", {class:"flame big", text:"🔥", style:`left:${x}px;top:${y}px`}));
+    for (let i = 0; i < 7; i++){
+      const a = (Math.PI * 2 * i) / 7 - Math.PI / 2 + (Math.random() - .5) * .5;
+      const d = 40 + Math.random() * 30;
+      layer.append(el("span", {class:"flame spark", text:"🔥",
+        style:`left:${x}px;top:${y}px;--dx:${Math.cos(a)*d}px;--dy:${Math.sin(a)*d - 20}px;--r:${(Math.random()-.5)*80}deg;animation-delay:${i*25}ms`}));
+    }
+    setTimeout(() => layer.querySelectorAll(".flame").forEach(f => f.remove()), 1200);
+    anchor.classList.remove("thump"); void anchor.offsetWidth; anchor.classList.add("thump");
+  }
+  const pendingUp = new Set();
+  async function upvote(id, anchor, tapped){
+    const m = state.moves.find(x => x.id === id);
+    if (!m) return;
+    if (m.upvoted){ if (tapped) toast("You already upvoted this one"); return; }
+    m.upvoted = true; m.upvotes++; pendingUp.add(id);
+    burst(anchor); render(); renderDetail();
+    try { await api("POST", `/api/moves/${encodeURIComponent(id)}/upvote`); }
+    catch (e) {
+      const mm = state.moves.find(x => x.id === id);
+      if (mm){ mm.upvoted = false; mm.upvotes = Math.max(0, mm.upvotes - 1); }
+      render(); renderDetail(); toast("Couldn't upvote. Try again.");
+    } finally { pendingUp.delete(id); }
+  }
+  $("dFire").addEventListener("click", e => state.openId && upvote(state.openId, e.currentTarget, true));
+
+  async function toggleGoing(m){
+    const next = !m.goingMine;
+    try {
+      await api("POST", `/api/moves/${encodeURIComponent(m.id)}/going`, { going: next });
+      toast(next ? "You're in" : "Removed you"); load();
+    } catch (e) { toast(e.message); }
+  }
+  async function removeMove(m, btn){
+    if (btn){ btn.disabled = true; btn.textContent = "Deleting…"; }
+    try {
+      await api("DELETE", `/api/moves/${encodeURIComponent(m.id)}`);
+      state.moves = state.moves.filter(x => x.id !== m.id);
+      closeSheet("detScrim"); render(); toast("Move deleted");
+    } catch (e) { toast(e.message); renderDetail(); }
+  }
+
+  $("uPost").addEventListener("click", postUpdate);
+  $("uText").addEventListener("keydown", e => { if (e.key === "Enter") postUpdate(); });
+  async function postUpdate(){
+    const text = $("uText").value.trim();
+    if (!text || !state.openId) return;
+    $("uPost").disabled = true;
+    try {
+      await api("POST", `/api/moves/${encodeURIComponent(state.openId)}/updates`, { text });
+      $("uText").value = ""; $("uErr").textContent = ""; toast("Update posted"); load();
+    } catch (e) { $("uErr").textContent = e.message; }
+    finally { $("uPost").disabled = false; }
+  }
+
+  // ---------- boot ----------
+  renderCats(); renderNameLine(); render();
+  load();
+  api("POST", "/api/visit").catch(() => {}); // counts this visit for the stats
+  setInterval(() => { if (document.visibilityState === "visible") load(); }, POLL_MS);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") load(); });
+})();
+</script>
+
+</body>
+</html>
